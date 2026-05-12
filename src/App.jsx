@@ -29,20 +29,8 @@ const initialEquipment = [
 ];
 
 const initialBookings = [
-  {
-    id: 1,
-    equipmentId: 1,
-    client: "Cliente A",
-    startDate: "2026-05-15",
-    endDate: "2026-05-20",
-  },
-  {
-    id: 2,
-    equipmentId: 3,
-    client: "Cliente B",
-    startDate: "2026-05-18",
-    endDate: "2026-05-25",
-  },
+  { id: 1, equipmentId: 1, client: "Cliente A", startDate: "2026-05-15", endDate: "2026-05-20" },
+  { id: 2, equipmentId: 3, client: "Cliente B", startDate: "2026-05-18", endDate: "2026-05-25" },
 ];
 
 function isDateBetween(date, start, end) {
@@ -50,16 +38,11 @@ function isDateBetween(date, start, end) {
 }
 
 function downloadCsv(filename, rows) {
-  const csvContent = rows.map((row) =>
-    row
-      .map((cell) => `"${String(cell ?? "").replaceAll('"', '""')}"`)
-      .join(",")
-  ).join("\n");
+  const csvContent = rows
+    .map((row) => row.map((cell) => `"${String(cell ?? "").replaceAll('"', '""')}"`).join(","))
+    .join("\n");
 
-  const blob = new Blob(["\ufeff" + csvContent], {
-    type: "text/csv;charset=utf-8;",
-  });
-
+  const blob = new Blob(["\ufeff" + csvContent], { type: "text/csv;charset=utf-8;" });
   const url = URL.createObjectURL(blob);
   const link = document.createElement("a");
   link.href = url;
@@ -81,6 +64,17 @@ export default function AppDisponibilidadEquipos() {
     return savedBookings ? JSON.parse(savedBookings) : initialBookings;
   });
 
+  const [selectedEquipmentId, setSelectedEquipmentId] = useState("1");
+  const [selectedBookingEquipmentIds, setSelectedBookingEquipmentIds] = useState(["1"]);
+  const [checkDate, setCheckDate] = useState("2026-05-18");
+  const [searchText, setSearchText] = useState("");
+
+  const [newBooking, setNewBooking] = useState({
+    client: "",
+    startDate: "",
+    endDate: "",
+  });
+
   useEffect(() => {
     localStorage.setItem("equipment", JSON.stringify(equipment));
   }, [equipment]);
@@ -88,18 +82,6 @@ export default function AppDisponibilidadEquipos() {
   useEffect(() => {
     localStorage.setItem("bookings", JSON.stringify(bookings));
   }, [bookings]);
-
-  const [selectedEquipmentId, setSelectedEquipmentId] = useState("1");
-  const [selectedBookingEquipmentIds, setSelectedBookingEquipmentIds] = useState(["1"]);
-  const [checkDate, setCheckDate] = useState("2026-05-18");
-  const [searchText, setSearchText] = useState("");
-
-  const [newBooking, setNewBooking] = useState({
-    equipmentId: "1",
-    client: "",
-    startDate: "",
-    endDate: "",
-  });
 
   const selectedEquipment = useMemo(() => {
     return equipment.find((item) => item.id === Number(selectedEquipmentId));
@@ -134,9 +116,7 @@ export default function AppDisponibilidadEquipos() {
 
     return equipment.map((item) => {
       const conflict = bookings.find(
-        (booking) =>
-          booking.equipmentId === item.id &&
-          isDateBetween(checkDate, booking.startDate, booking.endDate)
+        (booking) => booking.equipmentId === item.id && isDateBetween(checkDate, booking.startDate, booking.endDate)
       );
 
       const statusBlocksAvailability = item.status !== "Disponible";
@@ -169,17 +149,7 @@ export default function AppDisponibilidadEquipos() {
   const availabilitySummary = useMemo(() => {
     const available = allEquipmentStatus.filter((item) => item.available).length;
     const unavailable = allEquipmentStatus.length - available;
-    const maintenance = allEquipmentStatus.filter((item) => item.status === "Mantenimiento").length;
-    const damaged = allEquipmentStatus.filter((item) => item.status === "Dañado").length;
-    const outOfService = allEquipmentStatus.filter((item) => item.status === "Fuera de servicio").length;
-
-    return {
-      available,
-      unavailable,
-      maintenance,
-      damaged,
-      outOfService,
-    };
+    return { available, unavailable };
   }, [allEquipmentStatus]);
 
   function toggleBookingEquipment(equipmentId) {
@@ -188,9 +158,16 @@ export default function AppDisponibilidadEquipos() {
         const next = current.filter((id) => id !== equipmentId);
         return next.length === 0 ? current : next;
       }
-
       return [...current, equipmentId];
     });
+  }
+
+  function selectAllBookingEquipment() {
+    setSelectedBookingEquipmentIds(equipment.map((item) => String(item.id)));
+  }
+
+  function clearSelectedBookingEquipment() {
+    setSelectedBookingEquipmentIds(["1"]);
   }
 
   function addBooking() {
@@ -214,13 +191,10 @@ export default function AppDisponibilidadEquipos() {
       .filter(Boolean);
 
     const unavailableByStatus = selectedItems.filter((item) => item.status !== "Disponible");
-
     if (unavailableByStatus.length > 0) {
       alert(
-        "Estos equipos no se pueden reservar por su estado físico:
-" +
-          unavailableByStatus.map((item) => `${item.code} - ${item.status}`).join("
-")
+        "Estos equipos no se pueden reservar por su estado físico:\n" +
+          unavailableByStatus.map((item) => `${item.code} - ${item.status}`).join("\n")
       );
       return;
     }
@@ -228,20 +202,14 @@ export default function AppDisponibilidadEquipos() {
     const overlappingItems = selectedItems.filter((item) => {
       return bookings.some((booking) => {
         if (booking.equipmentId !== item.id) return false;
-
-        return (
-          newBooking.startDate <= booking.endDate &&
-          newBooking.endDate >= booking.startDate
-        );
+        return newBooking.startDate <= booking.endDate && newBooking.endDate >= booking.startDate;
       });
     });
 
     if (overlappingItems.length > 0) {
       alert(
-        "Estos equipos ya tienen una reserva que cruza con esas fechas:
-" +
-          overlappingItems.map((item) => `${item.code} - ${item.serial}`).join("
-")
+        "Estos equipos ya tienen una reserva que cruza con esas fechas:\n" +
+          overlappingItems.map((item) => `${item.code} - ${item.serial}`).join("\n")
       );
       return;
     }
@@ -256,14 +224,7 @@ export default function AppDisponibilidadEquipos() {
     }));
 
     setBookings((current) => [...current, ...newBookings]);
-
-    setNewBooking({
-      equipmentId: selectedBookingEquipmentIds[0] || "1",
-      client: "",
-      startDate: "",
-      endDate: "",
-    });
-
+    setNewBooking({ client: "", startDate: "", endDate: "" });
     alert(`Reserva creada para ${newBookings.length} equipo(s).`);
   }
 
@@ -278,11 +239,7 @@ export default function AppDisponibilidadEquipos() {
   }
 
   function updateEquipmentStatus(equipmentId, status) {
-    setEquipment((current) =>
-      current.map((item) =>
-        item.id === equipmentId ? { ...item, status } : item
-      )
-    );
+    setEquipment((current) => current.map((item) => (item.id === equipmentId ? { ...item, status } : item)));
   }
 
   function resetDemoData() {
@@ -297,17 +254,7 @@ export default function AppDisponibilidadEquipos() {
 
   function exportToExcel() {
     const rows = [
-      [
-        "Código interno",
-        "Tipo equipo",
-        "Marca",
-        "Modelo",
-        "Serial",
-        "Estado físico",
-        "Disponibilidad en fecha consultada",
-        "Cliente asignado en fecha",
-        "Fecha consultada",
-      ],
+      ["Código interno", "Tipo equipo", "Marca", "Modelo", "Serial", "Estado físico", "Disponibilidad en fecha consultada", "Cliente asignado en fecha", "Fecha consultada"],
       ...filteredEquipmentStatus.map((item) => [
         item.code,
         item.type,
@@ -324,15 +271,7 @@ export default function AppDisponibilidadEquipos() {
       ["Código interno", "Serial", "Marca", "Modelo", "Cliente", "Desde", "Hasta"],
       ...bookings.map((booking) => {
         const item = equipment.find((eq) => eq.id === booking.equipmentId);
-        return [
-          item?.code || "",
-          item?.serial || "",
-          item?.brand || "",
-          item?.model || "",
-          booking.client,
-          booking.startDate,
-          booking.endDate,
-        ];
+        return [item?.code || "", item?.serial || "", item?.brand || "", item?.model || "", booking.client, booking.startDate, booking.endDate];
       }),
     ];
 
@@ -346,9 +285,7 @@ export default function AppDisponibilidadEquipos() {
           <div>
             <p style={styles.kicker}>MVP inicial</p>
             <h1 style={styles.title}>Disponibilidad de equipos</h1>
-            <p style={styles.subtitle}>
-              Consulta si uno de tus analizadores de CO está disponible en una fecha específica y registra reservas por cliente.
-            </p>
+            <p style={styles.subtitle}>Consulta si uno de tus analizadores de CO está disponible en una fecha específica y registra reservas por cliente.</p>
           </div>
           <div style={styles.actionsHeader}>
             <div style={styles.counterCard}>
@@ -375,27 +312,16 @@ export default function AppDisponibilidadEquipos() {
             <div style={styles.formGrid}>
               <label style={styles.field}>
                 <span style={styles.label}>Equipo / código / serial</span>
-                <select
-                  style={styles.input}
-                  value={selectedEquipmentId}
-                  onChange={(event) => setSelectedEquipmentId(event.target.value)}
-                >
+                <select style={styles.input} value={selectedEquipmentId} onChange={(event) => setSelectedEquipmentId(event.target.value)}>
                   {equipment.map((item) => (
-                    <option key={item.id} value={String(item.id)}>
-                      {item.code} - {item.brand} {item.model} - Serial {item.serial}
-                    </option>
+                    <option key={item.id} value={String(item.id)}>{item.code} - {item.brand} {item.model} - Serial {item.serial}</option>
                   ))}
                 </select>
               </label>
 
               <label style={styles.field}>
                 <span style={styles.label}>Fecha a consultar</span>
-                <input
-                  style={styles.input}
-                  type="date"
-                  value={checkDate}
-                  onChange={(event) => setCheckDate(event.target.value)}
-                />
+                <input style={styles.input} type="date" value={checkDate} onChange={(event) => setCheckDate(event.target.value)} />
               </label>
             </div>
 
@@ -403,11 +329,7 @@ export default function AppDisponibilidadEquipos() {
               <div style={styles.formGrid}>
                 <label style={styles.field}>
                   <span style={styles.label}>Estado físico del equipo</span>
-                  <select
-                    style={styles.input}
-                    value={selectedEquipment.status}
-                    onChange={(event) => updateEquipmentStatus(selectedEquipment.id, event.target.value)}
-                  >
+                  <select style={styles.input} value={selectedEquipment.status} onChange={(event) => updateEquipmentStatus(selectedEquipment.id, event.target.value)}>
                     <option value="Disponible">Disponible</option>
                     <option value="Mantenimiento">Mantenimiento</option>
                     <option value="Dañado">Dañado</option>
@@ -416,45 +338,19 @@ export default function AppDisponibilidadEquipos() {
                 </label>
                 <label style={styles.field}>
                   <span style={styles.label}>Buscar por serial, código, marca o modelo</span>
-                  <input
-                    style={styles.input}
-                    placeholder="Ej: CO-005, TTGS63AN, HORIBA..."
-                    value={searchText}
-                    onChange={(event) => setSearchText(event.target.value)}
-                  />
+                  <input style={styles.input} placeholder="Ej: CO-005, TTGS63AN, HORIBA..." value={searchText} onChange={(event) => setSearchText(event.target.value)} />
                 </label>
               </div>
             )}
 
             {selectedEquipment && availability && (
-              <div
-                style={{
-                  ...styles.resultBox,
-                  ...(availability.available ? styles.availableBox : styles.unavailableBox),
-                }}
-              >
-                <h3 style={styles.resultTitle}>
-                  {availability.available ? "Disponible" : "No disponible"}
-                </h3>
-                <p style={styles.resultText}>
-                  <strong>{selectedEquipment.code}</strong> - {selectedEquipment.type}
-                </p>
-                <p style={styles.resultText}>
-                  {selectedEquipment.brand} {selectedEquipment.model} - Serial {selectedEquipment.serial}
-                </p>
-                <p style={styles.resultText}>
-                  Estado físico: <strong>{selectedEquipment.status}</strong>
-                </p>
-                {availability.statusBlocksAvailability && (
-                  <p style={styles.resultText}>
-                    Este equipo no se puede reservar porque está marcado como <strong>{selectedEquipment.status}</strong>.
-                  </p>
-                )}
-                {!availability.available && availability.conflict && (
-                  <p style={styles.resultText}>
-                    Está asignado a <strong>{availability.conflict.client}</strong> desde {availability.conflict.startDate} hasta {availability.conflict.endDate}.
-                  </p>
-                )}
+              <div style={{ ...styles.resultBox, ...(availability.available ? styles.availableBox : styles.unavailableBox) }}>
+                <h3 style={styles.resultTitle}>{availability.available ? "Disponible" : "No disponible"}</h3>
+                <p style={styles.resultText}><strong>{selectedEquipment.code}</strong> - {selectedEquipment.type}</p>
+                <p style={styles.resultText}>{selectedEquipment.brand} {selectedEquipment.model} - Serial {selectedEquipment.serial}</p>
+                <p style={styles.resultText}>Estado físico: <strong>{selectedEquipment.status}</strong></p>
+                {availability.statusBlocksAvailability && <p style={styles.resultText}>Este equipo no se puede reservar porque está marcado como <strong>{selectedEquipment.status}</strong>.</p>}
+                {!availability.available && availability.conflict && <p style={styles.resultText}>Está asignado a <strong>{availability.conflict.client}</strong> desde {availability.conflict.startDate} hasta {availability.conflict.endDate}.</p>}
               </div>
             )}
 
@@ -470,9 +366,7 @@ export default function AppDisponibilidadEquipos() {
                         <p style={styles.bookingClient}>{booking.client}</p>
                         <p style={styles.bookingDate}>{booking.startDate} a {booking.endDate}</p>
                       </div>
-                      <button style={styles.deleteButton} onClick={() => deleteBooking(booking.id)}>
-                        Eliminar
-                      </button>
+                      <button style={styles.deleteButton} onClick={() => deleteBooking(booking.id)}>Eliminar</button>
                     </div>
                   ))}
                 </div>
@@ -485,17 +379,15 @@ export default function AppDisponibilidadEquipos() {
 
             <div style={styles.field}>
               <span style={styles.label}>Equipos a reservar</span>
+              <div style={styles.inlineButtons}>
+                <button style={styles.miniButton} onClick={selectAllBookingEquipment}>Seleccionar todos</button>
+                <button style={styles.miniButton} onClick={clearSelectedBookingEquipment}>Dejar solo uno</button>
+              </div>
               <div style={styles.checkboxList}>
                 {equipment.map((item) => (
                   <label key={item.id} style={styles.checkboxItem}>
-                    <input
-                      type="checkbox"
-                      checked={selectedBookingEquipmentIds.includes(String(item.id))}
-                      onChange={() => toggleBookingEquipment(String(item.id))}
-                    />
-                    <span>
-                      <strong>{item.code}</strong> - {item.brand} {item.model} - Serial {item.serial}
-                    </span>
+                    <input type="checkbox" checked={selectedBookingEquipmentIds.includes(String(item.id))} onChange={() => toggleBookingEquipment(String(item.id))} />
+                    <span><strong>{item.code}</strong> - {item.brand} {item.model} - Serial {item.serial}</span>
                   </label>
                 ))}
               </div>
@@ -504,51 +396,23 @@ export default function AppDisponibilidadEquipos() {
 
             <label style={styles.field}>
               <span style={styles.label}>Cliente / responsable</span>
-              <input
-                style={styles.input}
-                placeholder="Ej: Cliente ABC"
-                value={newBooking.client}
-                onChange={(event) =>
-                  setNewBooking((current) => ({ ...current, client: event.target.value }))
-                }
-              />
+              <input style={styles.input} placeholder="Ej: Cliente ABC" value={newBooking.client} onChange={(event) => setNewBooking((current) => ({ ...current, client: event.target.value }))} />
             </label>
 
             <label style={styles.field}>
               <span style={styles.label}>Desde</span>
-              <input
-                style={styles.input}
-                type="date"
-                value={newBooking.startDate}
-                onChange={(event) =>
-                  setNewBooking((current) => ({ ...current, startDate: event.target.value }))
-                }
-              />
+              <input style={styles.input} type="date" value={newBooking.startDate} onChange={(event) => setNewBooking((current) => ({ ...current, startDate: event.target.value }))} />
             </label>
 
             <label style={styles.field}>
               <span style={styles.label}>Hasta</span>
-              <input
-                style={styles.input}
-                type="date"
-                value={newBooking.endDate}
-                onChange={(event) =>
-                  setNewBooking((current) => ({ ...current, endDate: event.target.value }))
-                }
-              />
+              <input style={styles.input} type="date" value={newBooking.endDate} onChange={(event) => setNewBooking((current) => ({ ...current, endDate: event.target.value }))} />
             </label>
 
-            <button style={styles.primaryButton} onClick={addBooking}>
-              Guardar reserva
-            </button>
+            <button style={styles.primaryButton} onClick={addBooking}>Guardar reserva</button>
+            <button style={styles.secondaryButton} onClick={resetDemoData}>Restaurar demo</button>
 
-            <button style={styles.secondaryButton} onClick={resetDemoData}>
-              Restaurar demo
-            </button>
-
-            <p style={styles.helpText}>
-              El sistema evita registrar reservas cruzadas para el mismo equipo y bloquea equipos en mantenimiento, dañados o fuera de servicio.
-            </p>
+            <p style={styles.helpText}>El sistema permite reservar varios equipos a la vez y evita fechas cruzadas.</p>
           </section>
         </main>
 
@@ -584,16 +448,7 @@ export default function AppDisponibilidadEquipos() {
                     <td style={styles.td}>{item.model}</td>
                     <td style={styles.td}>{item.serial}</td>
                     <td style={styles.td}>{item.status}</td>
-                    <td style={styles.td}>
-                      <span
-                        style={{
-                          ...styles.badge,
-                          ...(item.available ? styles.badgeAvailable : styles.badgeUnavailable),
-                        }}
-                      >
-                        {item.available ? "Disponible" : "No disponible"}
-                      </span>
-                    </td>
+                    <td style={styles.td}><span style={{ ...styles.badge, ...(item.available ? styles.badgeAvailable : styles.badgeUnavailable) }}>{item.available ? "Disponible" : "No disponible"}</span></td>
                     <td style={styles.td}>{item.client || (item.blockedByStatus ? item.status : "")}</td>
                   </tr>
                 ))}
@@ -607,298 +462,54 @@ export default function AppDisponibilidadEquipos() {
 }
 
 const styles = {
-  page: {
-    minHeight: "100vh",
-    background: "#f8fafc",
-    color: "#0f172a",
-    fontFamily: "Arial, sans-serif",
-    padding: "24px",
-  },
-  container: {
-    maxWidth: "1400px",
-    margin: "0 auto",
-  },
-  header: {
-    display: "flex",
-    justifyContent: "space-between",
-    alignItems: "flex-end",
-    gap: "16px",
-    marginBottom: "24px",
-    flexWrap: "wrap",
-  },
-  actionsHeader: {
-    display: "flex",
-    gap: "10px",
-    alignItems: "center",
-    flexWrap: "wrap",
-  },
-  kicker: {
-    margin: 0,
-    color: "#64748b",
-    fontSize: "14px",
-    fontWeight: 700,
-  },
-  title: {
-    margin: "4px 0",
-    fontSize: "34px",
-    lineHeight: 1.1,
-  },
-  subtitle: {
-    margin: 0,
-    color: "#475569",
-    maxWidth: "760px",
-  },
-  counterCard: {
-    background: "white",
-    borderRadius: "18px",
-    padding: "16px 22px",
-    boxShadow: "0 8px 24px rgba(15, 23, 42, 0.08)",
-  },
-  availableCounterCard: {
-    background: "#ecfdf5",
-    border: "1px solid #a7f3d0",
-    borderRadius: "18px",
-    padding: "16px 22px",
-    boxShadow: "0 8px 24px rgba(15, 23, 42, 0.08)",
-  },
-  unavailableCounterCard: {
-    background: "#fef2f2",
-    border: "1px solid #fecaca",
-    borderRadius: "18px",
-    padding: "16px 22px",
-    boxShadow: "0 8px 24px rgba(15, 23, 42, 0.08)",
-  },
-  smallText: {
-    margin: 0,
-    color: "#64748b",
-    fontSize: "14px",
-  },
-  counter: {
-    margin: 0,
-    fontSize: "28px",
-    fontWeight: 800,
-  },
-  gridMain: {
-    display: "grid",
-    gridTemplateColumns: "2fr 1fr",
-    gap: "24px",
-    marginBottom: "24px",
-  },
-  cardLarge: {
-    background: "white",
-    borderRadius: "22px",
-    padding: "24px",
-    boxShadow: "0 8px 24px rgba(15, 23, 42, 0.08)",
-  },
-  card: {
-    background: "white",
-    borderRadius: "22px",
-    padding: "24px",
-    boxShadow: "0 8px 24px rgba(15, 23, 42, 0.08)",
-    display: "flex",
-    flexDirection: "column",
-    gap: "14px",
-  },
-  cardFull: {
-    background: "white",
-    borderRadius: "22px",
-    padding: "24px",
-    boxShadow: "0 8px 24px rgba(15, 23, 42, 0.08)",
-  },
-  sectionTitle: {
-    margin: "0 0 18px",
-    fontSize: "22px",
-  },
-  tableHeader: {
-    display: "flex",
-    justifyContent: "space-between",
-    gap: "16px",
-    alignItems: "center",
-    flexWrap: "wrap",
-    marginBottom: "16px",
-  },
-  formGrid: {
-    display: "grid",
-    gridTemplateColumns: "1fr 1fr",
-    gap: "16px",
-    marginBottom: "18px",
-  },
-  field: {
-    display: "flex",
-    flexDirection: "column",
-    gap: "7px",
-  },
-  label: {
-    fontSize: "14px",
-    fontWeight: 700,
-  },
-  input: {
-    width: "100%",
-    boxSizing: "border-box",
-    border: "1px solid #cbd5e1",
-    borderRadius: "12px",
-    padding: "11px 12px",
-    fontSize: "15px",
-    background: "white",
-  },
-  resultBox: {
-    borderRadius: "18px",
-    padding: "18px",
-    border: "1px solid",
-    marginBottom: "22px",
-  },
-  availableBox: {
-    borderColor: "#a7f3d0",
-    background: "#ecfdf5",
-  },
-  unavailableBox: {
-    borderColor: "#fecaca",
-    background: "#fef2f2",
-  },
-  resultTitle: {
-    margin: "0 0 6px",
-    fontSize: "22px",
-  },
-  resultText: {
-    margin: "4px 0",
-    color: "#334155",
-  },
-  block: {
-    marginTop: "18px",
-  },
-  subTitle: {
-    margin: "0 0 12px",
-    fontSize: "18px",
-  },
-  emptyBox: {
-    background: "#f1f5f9",
-    borderRadius: "14px",
-    padding: "14px",
-    color: "#64748b",
-  },
-  list: {
-    display: "flex",
-    flexDirection: "column",
-    gap: "10px",
-  },
-  bookingItem: {
-    background: "#f1f5f9",
-    borderRadius: "14px",
-    padding: "12px",
-    display: "flex",
-    justifyContent: "space-between",
-    alignItems: "center",
-    gap: "12px",
-  },
-  bookingClient: {
-    margin: 0,
-    fontWeight: 700,
-  },
-  bookingDate: {
-    margin: "4px 0 0",
-    color: "#64748b",
-    fontSize: "14px",
-  },
-  deleteButton: {
-    border: 0,
-    borderRadius: "10px",
-    background: "#e2e8f0",
-    padding: "8px 10px",
-    cursor: "pointer",
-  },
-  primaryButton: {
-    border: 0,
-    borderRadius: "12px",
-    background: "#0f172a",
-    color: "white",
-    padding: "12px 14px",
-    cursor: "pointer",
-    fontWeight: 800,
-    fontSize: "15px",
-  },
-  secondaryButton: {
-    border: "1px solid #cbd5e1",
-    borderRadius: "12px",
-    background: "white",
-    color: "#0f172a",
-    padding: "12px 14px",
-    cursor: "pointer",
-    fontWeight: 800,
-    fontSize: "15px",
-  },
-  dangerButton: {
-    border: 0,
-    borderRadius: "12px",
-    background: "#991b1b",
-    color: "white",
-    padding: "12px 14px",
-    cursor: "pointer",
-    fontWeight: 800,
-    fontSize: "15px",
-  },
-  helpText: {
-    margin: 0,
-    color: "#64748b",
-    fontSize: "13px",
-  },
-  checkboxList: {
-    maxHeight: "260px",
-    overflowY: "auto",
-    border: "1px solid #cbd5e1",
-    borderRadius: "12px",
-    padding: "10px",
-    background: "#ffffff",
-    display: "flex",
-    flexDirection: "column",
-    gap: "8px",
-  },
-  checkboxItem: {
-    display: "flex",
-    alignItems: "flex-start",
-    gap: "8px",
-    fontSize: "13px",
-    color: "#334155",
-    cursor: "pointer",
-  },
-  tableWrap: {
-    width: "100%",
-    overflowX: "auto",
-    border: "1px solid #e2e8f0",
-    borderRadius: "16px",
-  },
-  table: {
-    width: "100%",
-    borderCollapse: "collapse",
-    minWidth: "1100px",
-    background: "white",
-  },
-  th: {
-    background: "#0f172a",
-    color: "white",
-    padding: "12px",
-    textAlign: "left",
-    fontSize: "14px",
-    borderBottom: "1px solid #e2e8f0",
-  },
-  td: {
-    padding: "11px 12px",
-    borderBottom: "1px solid #e2e8f0",
-    fontSize: "14px",
-    color: "#334155",
-  },
-  badge: {
-    borderRadius: "999px",
-    padding: "5px 9px",
-    fontSize: "12px",
-    fontWeight: 800,
-    display: "inline-block",
-  },
-  badgeAvailable: {
-    background: "#dcfce7",
-    color: "#166534",
-  },
-  badgeUnavailable: {
-    background: "#fee2e2",
-    color: "#991b1b",
-  },
+  page: { minHeight: "100vh", background: "#f8fafc", color: "#0f172a", fontFamily: "Arial, sans-serif", padding: "24px" },
+  container: { maxWidth: "1400px", margin: "0 auto" },
+  header: { display: "flex", justifyContent: "space-between", alignItems: "flex-end", gap: "16px", marginBottom: "24px", flexWrap: "wrap" },
+  actionsHeader: { display: "flex", gap: "10px", alignItems: "center", flexWrap: "wrap" },
+  kicker: { margin: 0, color: "#64748b", fontSize: "14px", fontWeight: 700 },
+  title: { margin: "4px 0", fontSize: "34px", lineHeight: 1.1 },
+  subtitle: { margin: 0, color: "#475569", maxWidth: "760px" },
+  counterCard: { background: "white", borderRadius: "18px", padding: "16px 22px", boxShadow: "0 8px 24px rgba(15, 23, 42, 0.08)" },
+  availableCounterCard: { background: "#ecfdf5", border: "1px solid #a7f3d0", borderRadius: "18px", padding: "16px 22px", boxShadow: "0 8px 24px rgba(15, 23, 42, 0.08)" },
+  unavailableCounterCard: { background: "#fef2f2", border: "1px solid #fecaca", borderRadius: "18px", padding: "16px 22px", boxShadow: "0 8px 24px rgba(15, 23, 42, 0.08)" },
+  smallText: { margin: 0, color: "#64748b", fontSize: "14px" },
+  counter: { margin: 0, fontSize: "28px", fontWeight: 800 },
+  gridMain: { display: "grid", gridTemplateColumns: "2fr 1fr", gap: "24px", marginBottom: "24px" },
+  cardLarge: { background: "white", borderRadius: "22px", padding: "24px", boxShadow: "0 8px 24px rgba(15, 23, 42, 0.08)" },
+  card: { background: "white", borderRadius: "22px", padding: "24px", boxShadow: "0 8px 24px rgba(15, 23, 42, 0.08)", display: "flex", flexDirection: "column", gap: "14px" },
+  cardFull: { background: "white", borderRadius: "22px", padding: "24px", boxShadow: "0 8px 24px rgba(15, 23, 42, 0.08)" },
+  sectionTitle: { margin: "0 0 18px", fontSize: "22px" },
+  tableHeader: { display: "flex", justifyContent: "space-between", gap: "16px", alignItems: "center", flexWrap: "wrap", marginBottom: "16px" },
+  formGrid: { display: "grid", gridTemplateColumns: "1fr 1fr", gap: "16px", marginBottom: "18px" },
+  field: { display: "flex", flexDirection: "column", gap: "7px" },
+  label: { fontSize: "14px", fontWeight: 700 },
+  input: { width: "100%", boxSizing: "border-box", border: "1px solid #cbd5e1", borderRadius: "12px", padding: "11px 12px", fontSize: "15px", background: "white" },
+  resultBox: { borderRadius: "18px", padding: "18px", border: "1px solid", marginBottom: "22px" },
+  availableBox: { borderColor: "#a7f3d0", background: "#ecfdf5" },
+  unavailableBox: { borderColor: "#fecaca", background: "#fef2f2" },
+  resultTitle: { margin: "0 0 6px", fontSize: "22px" },
+  resultText: { margin: "4px 0", color: "#334155" },
+  block: { marginTop: "18px" },
+  subTitle: { margin: "0 0 12px", fontSize: "18px" },
+  emptyBox: { background: "#f1f5f9", borderRadius: "14px", padding: "14px", color: "#64748b" },
+  list: { display: "flex", flexDirection: "column", gap: "10px" },
+  bookingItem: { background: "#f1f5f9", borderRadius: "14px", padding: "12px", display: "flex", justifyContent: "space-between", alignItems: "center", gap: "12px" },
+  bookingClient: { margin: 0, fontWeight: 700 },
+  bookingDate: { margin: "4px 0 0", color: "#64748b", fontSize: "14px" },
+  deleteButton: { border: 0, borderRadius: "10px", background: "#e2e8f0", padding: "8px 10px", cursor: "pointer" },
+  primaryButton: { border: 0, borderRadius: "12px", background: "#0f172a", color: "white", padding: "12px 14px", cursor: "pointer", fontWeight: 800, fontSize: "15px" },
+  secondaryButton: { border: "1px solid #cbd5e1", borderRadius: "12px", background: "white", color: "#0f172a", padding: "12px 14px", cursor: "pointer", fontWeight: 800, fontSize: "15px" },
+  dangerButton: { border: 0, borderRadius: "12px", background: "#991b1b", color: "white", padding: "12px 14px", cursor: "pointer", fontWeight: 800, fontSize: "15px" },
+  helpText: { margin: 0, color: "#64748b", fontSize: "13px" },
+  checkboxList: { maxHeight: "260px", overflowY: "auto", border: "1px solid #cbd5e1", borderRadius: "12px", padding: "10px", background: "#ffffff", display: "flex", flexDirection: "column", gap: "8px" },
+  checkboxItem: { display: "flex", alignItems: "flex-start", gap: "8px", fontSize: "13px", color: "#334155", cursor: "pointer" },
+  inlineButtons: { display: "flex", gap: "8px", flexWrap: "wrap" },
+  miniButton: { border: "1px solid #cbd5e1", borderRadius: "10px", background: "#f8fafc", padding: "7px 10px", cursor: "pointer", fontWeight: 700, fontSize: "12px" },
+  tableWrap: { width: "100%", overflowX: "auto", border: "1px solid #e2e8f0", borderRadius: "16px" },
+  table: { width: "100%", borderCollapse: "collapse", minWidth: "1100px", background: "white" },
+  th: { background: "#0f172a", color: "white", padding: "12px", textAlign: "left", fontSize: "14px", borderBottom: "1px solid #e2e8f0" },
+  td: { padding: "11px 12px", borderBottom: "1px solid #e2e8f0", fontSize: "14px", color: "#334155" },
+  badge: { borderRadius: "999px", padding: "5px 9px", fontSize: "12px", fontWeight: 800, display: "inline-block" },
+  badgeAvailable: { background: "#dcfce7", color: "#166534" },
+  badgeUnavailable: { background: "#fee2e2", color: "#991b1b" },
 };
