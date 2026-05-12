@@ -165,6 +165,22 @@ export default function AppDisponibilidadEquipos() {
     });
   }, [allEquipmentStatus, searchText]);
 
+  const availabilitySummary = useMemo(() => {
+    const available = allEquipmentStatus.filter((item) => item.available).length;
+    const unavailable = allEquipmentStatus.length - available;
+    const maintenance = allEquipmentStatus.filter((item) => item.status === "Mantenimiento").length;
+    const damaged = allEquipmentStatus.filter((item) => item.status === "Dañado").length;
+    const outOfService = allEquipmentStatus.filter((item) => item.status === "Fuera de servicio").length;
+
+    return {
+      available,
+      unavailable,
+      maintenance,
+      damaged,
+      outOfService,
+    };
+  }, [allEquipmentStatus]);
+
   function addBooking() {
     const equipmentToBook = equipment.find((item) => item.id === Number(newBooking.equipmentId));
 
@@ -307,6 +323,14 @@ export default function AppDisponibilidadEquipos() {
             <div style={styles.counterCard}>
               <p style={styles.smallText}>Equipos registrados</p>
               <p style={styles.counter}>{equipment.length}</p>
+            </div>
+            <div style={styles.availableCounterCard}>
+              <p style={styles.smallText}>Disponibles en la fecha</p>
+              <p style={styles.counter}>{availabilitySummary.available}</p>
+            </div>
+            <div style={styles.unavailableCounterCard}>
+              <p style={styles.smallText}>No disponibles</p>
+              <p style={styles.counter}>{availabilitySummary.unavailable}</p>
             </div>
             <button style={styles.secondaryButton} onClick={exportToExcel}>Exportar a Excel</button>
             <button style={styles.dangerButton} onClick={clearBookings}>Limpiar reservas</button>
@@ -593,6 +617,20 @@ const styles = {
   },
   counterCard: {
     background: "white",
+    borderRadius: "18px",
+    padding: "16px 22px",
+    boxShadow: "0 8px 24px rgba(15, 23, 42, 0.08)",
+  },
+  availableCounterCard: {
+    background: "#ecfdf5",
+    border: "1px solid #a7f3d0",
+    borderRadius: "18px",
+    padding: "16px 22px",
+    boxShadow: "0 8px 24px rgba(15, 23, 42, 0.08)",
+  },
+  unavailableCounterCard: {
+    background: "#fef2f2",
+    border: "1px solid #fecaca",
     borderRadius: "18px",
     padding: "16px 22px",
     boxShadow: "0 8px 24px rgba(15, 23, 42, 0.08)",
