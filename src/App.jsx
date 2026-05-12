@@ -90,6 +90,7 @@ export default function AppDisponibilidadEquipos() {
   }, [bookings]);
 
   const [selectedEquipmentId, setSelectedEquipmentId] = useState("1");
+  const [selectedBookingEquipmentIds, setSelectedBookingEquipmentIds] = useState(["1"]);
   const [checkDate, setCheckDate] = useState("2026-05-18");
   const [searchText, setSearchText] = useState("");
 
@@ -181,21 +182,25 @@ export default function AppDisponibilidadEquipos() {
     };
   }, [allEquipmentStatus]);
 
-  function addBooking() {
-    const equipmentToBook = equipment.find((item) => item.id === Number(newBooking.equipmentId));
+  function toggleBookingEquipment(equipmentId) {
+    setSelectedBookingEquipmentIds((current) => {
+      if (current.includes(equipmentId)) {
+        const next = current.filter((id) => id !== equipmentId);
+        return next.length === 0 ? current : next;
+      }
 
+      return [...current, equipmentId];
+    });
+  }
+
+  function addBooking() {
     if (!newBooking.client || !newBooking.startDate || !newBooking.endDate) {
       alert("Completa cliente, fecha inicial y fecha final.");
       return;
     }
 
-    if (!equipmentToBook) {
-      alert("Selecciona un equipo válido.");
-      return;
-    }
-
-    if (equipmentToBook.status !== "Disponible") {
-      alert(`No puedes reservar este equipo porque su estado es: ${equipmentToBook.status}.`);
+    if (selectedBookingEquipmentIds.length === 0) {
+      alert("Selecciona por lo menos un equipo.");
       return;
     }
 
@@ -204,37 +209,62 @@ export default function AppDisponibilidadEquipos() {
       return;
     }
 
-    const hasOverlap = bookings.some((booking) => {
-      if (booking.equipmentId !== Number(newBooking.equipmentId)) return false;
+    const selectedItems = selectedBookingEquipmentIds
+      .map((id) => equipment.find((item) => item.id === Number(id)))
+      .filter(Boolean);
 
-      return (
-        newBooking.startDate <= booking.endDate &&
-        newBooking.endDate >= booking.startDate
+    const unavailableByStatus = selectedItems.filter((item) => item.status !== "Disponible");
+
+    if (unavailableByStatus.length > 0) {
+      alert(
+        "Estos equipos no se pueden reservar por su estado físico:
+" +
+          unavailableByStatus.map((item) => `${item.code} - ${item.status}`).join("
+")
       );
-    });
-
-    if (hasOverlap) {
-      alert("Este equipo ya tiene una reserva que cruza con esas fechas.");
       return;
     }
 
-    setBookings((current) => [
-      ...current,
-      {
-        id: Date.now(),
-        equipmentId: Number(newBooking.equipmentId),
-        client: newBooking.client,
-        startDate: newBooking.startDate,
-        endDate: newBooking.endDate,
-      },
-    ]);
+    const overlappingItems = selectedItems.filter((item) => {
+      return bookings.some((booking) => {
+        if (booking.equipmentId !== item.id) return false;
+
+        return (
+          newBooking.startDate <= booking.endDate &&
+          newBooking.endDate >= booking.startDate
+        );
+      });
+    });
+
+    if (overlappingItems.length > 0) {
+      alert(
+        "Estos equipos ya tienen una reserva que cruza con esas fechas:
+" +
+          overlappingItems.map((item) => `${item.code} - ${item.serial}`).join("
+")
+      );
+      return;
+    }
+
+    const createdAt = Date.now();
+    const newBookings = selectedItems.map((item, index) => ({
+      id: createdAt + index,
+      equipmentId: item.id,
+      client: newBooking.client,
+      startDate: newBooking.startDate,
+      endDate: newBooking.endDate,
+    }));
+
+    setBookings((current) => [...current, ...newBookings]);
 
     setNewBooking({
-      equipmentId: newBooking.equipmentId,
+      equipmentId: selectedBookingEquipmentIds[0] || "1",
       client: "",
       startDate: "",
       endDate: "",
     });
+
+    alert(`Reserva creada para ${newBookings.length} equipo(s).`);
   }
 
   function deleteBooking(id) {
@@ -261,6 +291,7 @@ export default function AppDisponibilidadEquipos() {
     setEquipment(initialEquipment);
     setBookings(initialBookings);
     setSelectedEquipmentId("1");
+    setSelectedBookingEquipmentIds(["1"]);
     setSearchText("");
   }
 
@@ -452,22 +483,24 @@ export default function AppDisponibilidadEquipos() {
           <section style={styles.card}>
             <h2 style={styles.sectionTitle}>Registrar reserva</h2>
 
-            <label style={styles.field}>
-              <span style={styles.label}>Equipo</span>
-              <select
-                style={styles.input}
-                value={newBooking.equipmentId}
-                onChange={(event) =>
-                  setNewBooking((current) => ({ ...current, equipmentId: event.target.value }))
-                }
-              >
+            <div style={styles.field}>
+              <span style={styles.label}>Equipos a reservar</span>
+              <div style={styles.checkboxList}>
                 {equipment.map((item) => (
-                  <option key={item.id} value={String(item.id)}>
-                    {item.code} - {item.brand} {item.model}
-                  </option>
+                  <label key={item.id} style={styles.checkboxItem}>
+                    <input
+                      type="checkbox"
+                      checked={selectedBookingEquipmentIds.includes(String(item.id))}
+                      onChange={() => toggleBookingEquipment(String(item.id))}
+                    />
+                    <span>
+                      <strong>{item.code}</strong> - {item.brand} {item.model} - Serial {item.serial}
+                    </span>
+                  </label>
                 ))}
-              </select>
-            </label>
+              </div>
+              <p style={styles.helpText}>Seleccionados: {selectedBookingEquipmentIds.length}</p>
+            </div>
 
             <label style={styles.field}>
               <span style={styles.label}>Cliente / responsable</span>
@@ -807,6 +840,25 @@ const styles = {
     margin: 0,
     color: "#64748b",
     fontSize: "13px",
+  },
+  checkboxList: {
+    maxHeight: "260px",
+    overflowY: "auto",
+    border: "1px solid #cbd5e1",
+    borderRadius: "12px",
+    padding: "10px",
+    background: "#ffffff",
+    display: "flex",
+    flexDirection: "column",
+    gap: "8px",
+  },
+  checkboxItem: {
+    display: "flex",
+    alignItems: "flex-start",
+    gap: "8px",
+    fontSize: "13px",
+    color: "#334155",
+    cursor: "pointer",
   },
   tableWrap: {
     width: "100%",
